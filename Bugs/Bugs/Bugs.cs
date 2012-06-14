@@ -50,7 +50,9 @@ namespace Bugs
             spriteBatch = new SpriteBatch(GraphicsDevice);
 
             Texture2D bugTexture = Content.Load<Texture2D>("bug");
-            bug1 = new BugObject(bugTexture, new Vector2(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2), new Vector2(0f, -2f));
+            Vector2 startPosition = new Vector2(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
+            Vector2 startVelocity = new Vector2(2f, 2f);
+            bug1 = new BugObject(bugTexture, startPosition, 0f);
 
             spriteFont = Content.Load<SpriteFont>("SpriteFont1");
         }
@@ -74,9 +76,8 @@ namespace Bugs
             KeyboardState keyboard = Keyboard.GetState();
             if (keyboard.IsKeyDown(Keys.Escape)) this.Exit();
 
-            bug1.Position += bug1.Velocity;
-
-            CheckWallCollision();
+            bug1.Move();
+            bug1.CheckCollision(GraphicsDevice.Viewport);
 
             base.Update(gameTime);
         }
@@ -92,7 +93,7 @@ namespace Bugs
             spriteBatch.Begin();
             bug1.Draw(spriteBatch);
 
-            string output = string.Format("{0:0}, {1:0}", bug1.Position.X, bug1.Position.Y);
+            string output = string.Format("{0:0}, {1:0} : {2:0.0}", bug1.Position.X, bug1.Position.Y, bug1.Rotation);
             Vector2 fontOrigin = spriteFont.MeasureString(output) / 2;
             spriteFontPosition.X = fontOrigin.X;
             spriteFontPosition.Y = fontOrigin.Y;
@@ -100,15 +101,6 @@ namespace Bugs
             spriteBatch.End();
 
             base.Draw(gameTime);
-        }
-
-        private void CheckWallCollision()
-        {
-            Viewport viewport = GraphicsDevice.Viewport;
-            if (bug1.Position.Y < bug1.BoundingBox.Height / 2)
-            {
-                bug1.Velocity.Y = 0;
-            }
         }
     }
 }
