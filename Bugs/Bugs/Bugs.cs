@@ -14,17 +14,45 @@ namespace Bugs
     /// <summary>
     /// This is the main type for your game
     /// </summary>
-    public class Bugs : Microsoft.Xna.Framework.Game
+    public class Game1 : Microsoft.Xna.Framework.Game
     {
-        GraphicsDeviceManager graphics;
-        SpriteBatch spriteBatch;
-        BugObject bug1;
-        SpriteFont spriteFont;
-        Vector2 spriteFontPosition;
+        private GraphicsDeviceManager graphics;
+        private SpriteBatch spriteBatch;
+        private Texture2D spriteTexture;
+        private int worldWidth = 2048;
+        private int worldHeight = 2048;
+        private Camera _camera;
+        private Texture2D dummyTexture;
+        private MouseState old_mouse;
+        private float mouseMoveScalingFactor = -1f;
+        private float mouseZoomScalingFactor = 1200.0f;
 
-        public Bugs()
+        public Game1()
         {
+            // Instance the super-helpful graphics manager  
             graphics = new GraphicsDeviceManager(this);
+
+            // Set vertical trace with the back buffer  
+            graphics.SynchronizeWithVerticalRetrace = false;
+
+            // Use multi-sampling to smooth corners of objects  
+            graphics.PreferMultiSampling = true;
+
+            // Set the update to run as fast as it can go or  
+            // with a target elapsed time between updates  
+            IsFixedTimeStep = false;
+
+            // Make the mouse appear  
+            IsMouseVisible = true;
+
+            // Set back buffer resolution  
+            graphics.PreferredBackBufferWidth = 800;
+            graphics.PreferredBackBufferHeight = 600;
+
+            // Make full screen  
+            //graphics.ToggleFullScreen();
+
+            // Assign content project subfolder  
             Content.RootDirectory = "Content";
         }
 
@@ -36,6 +64,8 @@ namespace Bugs
         /// </summary>
         protected override void Initialize()
         {
+            _camera = new Camera(GraphicsDevice.Viewport);
+            _camera.Limits = new Rectangle(0, 0, worldWidth, worldHeight);
 
             base.Initialize();
         }
@@ -49,12 +79,10 @@ namespace Bugs
             // Create a new SpriteBatch, which can be used to draw textures.
             spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            Texture2D bugTexture = Content.Load<Texture2D>("bug");
-            Vector2 startPosition = new Vector2(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
-            Vector2 startVelocity = new Vector2(2f, 2f);
-            bug1 = new BugObject(bugTexture, startPosition, 0f);
+            spriteTexture = Content.Load<Texture2D>("dirt");
 
-            spriteFont = Content.Load<SpriteFont>("SpriteFont1");
+            dummyTexture = new Texture2D(GraphicsDevice, 1, 1);
+            dummyTexture.SetData(new Color[] { Color.White });
         }
 
         /// <summary>
@@ -76,10 +104,30 @@ namespace Bugs
             KeyboardState keyboard = Keyboard.GetState();
             if (keyboard.IsKeyDown(Keys.Escape)) this.Exit();
 
-            bug1.Move();
-            bug1.CheckCollision(GraphicsDevice.Viewport);
+            if (Mouse.GetState().LeftButton == ButtonState.Pressed)
+            {
+                _camera.Position += new Vector2((Mouse.GetState().X - old_mouse.X) * mouseMoveScalingFactor / _camera.Zoom, (Mouse.GetState().Y - old_mouse.Y) * mouseMoveScalingFactor / _camera.Zoom);
+            }
+ 
+            if (Mouse.GetState().ScrollWheelValue != old_mouse.ScrollWheelValue)
+            {
+                _camera.Zoom += (Mouse.GetState().ScrollWheelValue - old_mouse.ScrollWheelValue) / mouseZoomScalingFactor;
+            }
+
+            if (keyboard.IsKeyDown(Keys.R))
+            {
+                ResetCamera();
+            }
+ 
+            old_mouse = Mouse.GetState();
 
             base.Update(gameTime);
+        }
+
+        private void ResetCamera()
+        {
+            _camera.Zoom = 1f;
+            _camera.Position = Vector2.Zero;
         }
 
         /// <summary>
@@ -90,14 +138,16 @@ namespace Bugs
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            spriteBatch.Begin();
-            bug1.Draw(spriteBatch);
+            spriteBatch.Begin(SpriteSortMode.BackToFront,
+                        BlendState.AlphaBlend,
+                        SamplerState.LinearWrap,
+                        DepthStencilState.Default,
+                        RasterizerState.CullNone,
+                        null,
+                        _camera.ViewMatrix);
 
-            string output = string.Format("{0:0}, {1:0} : {2:0.0}", bug1.Position.X, bug1.Position.Y, bug1.Rotation);
-            Vector2 fontOrigin = spriteFont.MeasureString(output) / 2;
-            spriteFontPosition.X = fontOrigin.X;
-            spriteFontPosition.Y = fontOrigin.Y;
-            spriteBatch.DrawString(spriteFont, output, spriteFontPosition, Color.Black, 0, fontOrigin, 1.0f, SpriteEffects.None, 0.5f);
+            spriteBatch.Draw(spriteTexture, Vector2.Zero, new Rectangle(0, 0, worldWidth, worldHeight), Color.White, 0, Vector2.Zero, 1, SpriteEffects.None, 0);
+
             spriteBatch.End();
 
             base.Draw(gameTime);

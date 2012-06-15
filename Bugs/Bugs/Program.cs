@@ -10,7 +10,7 @@ namespace Bugs
         /// </summary>
         static void Main(string[] args)
         {
-            using (Bugs game = new Bugs())
+            using (Game1 game = new Game1())
             {
                 game.Run();
             }
