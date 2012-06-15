@@ -14,7 +14,7 @@ namespace Bugs
         public Vector2 Position;
         public Vector2 Velocity;
         public float Rotation;
-        public float Speed = 2f;
+        public float Speed = 0.1f;
         private Vector2 Origin;
         private bool condBlocked = false;
 
@@ -83,11 +83,11 @@ namespace Bugs
             }
         }
 
-        public void CheckCollision(Viewport viewport)
+        public void CheckCollision(Rectangle limits)
         {
-            int MaxX = viewport.Width - (this.Texture.Width / 2);
+            int MaxX = limits.Width - (this.Texture.Width / 2);
             int MinX = this.Texture.Width / 2;
-            int MaxY = viewport.Height - (this.Texture.Height / 2);
+            int MaxY = limits.Height - (this.Texture.Height / 2);
             int MinY = this.Texture.Height / 2;
 
             if (this.Position.X > MaxX)
