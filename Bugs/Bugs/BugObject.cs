@@ -10,107 +10,172 @@ namespace Bugs
 {
     public class BugObject
     {
-        Texture2D Texture;
-        public Vector2 Position;
-        public Vector2 Velocity;
-        public float Rotation;
-        public float Speed = 0.1f;
-        private Vector2 Origin;
-        private bool condBlocked = false;
+        private Texture2D _texture;
+        private float _rotation;
+        private float _speed = 20f;
+        private float _rotationStep = 0.05f;
+        private Vector2 _origin;
+        private Random _random = new Random();
+        private Vector2 _position;
+        private Vector2 _velocity;
 
         public Rectangle BoundingBox
         {
             get
             {
-                return new Rectangle(
-                    (int)Position.X,
-                    (int)Position.Y,
-                    Texture.Width,
-                    Texture.Height);
+                Matrix toWorldSpace =
+                    Matrix.CreateTranslation(new Vector3(-this._origin, 0.0f)) *
+                    Matrix.CreateRotationZ(this._rotation) *
+                    Matrix.CreateTranslation(new Vector3(this._position, 0.0f));
+
+                return CalculateTransformedBoundingBox(
+                    new Rectangle(0, 0, _texture.Width, _texture.Height),
+                    toWorldSpace);
             }
+        }
+
+        private Rectangle CalculateTransformedBoundingBox(Rectangle local, Matrix toWorldSpace)
+        {
+            // Get all four corners in local space
+            Vector2 leftTop = new Vector2(local.Left, local.Top);
+            Vector2 rightTop = new Vector2(local.Right, local.Top);
+            Vector2 leftBottom = new Vector2(local.Left, local.Bottom);
+            Vector2 rightBottom = new Vector2(local.Right, local.Bottom);
+
+            // Transform all four corners into work space
+            Vector2.Transform(ref leftTop, ref toWorldSpace,
+                             out leftTop);
+            Vector2.Transform(ref rightTop, ref toWorldSpace,
+                             out rightTop);
+            Vector2.Transform(ref leftBottom, ref toWorldSpace,
+                             out leftBottom);
+            Vector2.Transform(ref rightBottom, ref toWorldSpace,
+                             out rightBottom);
+
+            // Find the minimum and maximum extents of the
+            // rectangle in world space
+            Vector2 min = Vector2.Min(Vector2.Min(leftTop, rightTop),
+                                     Vector2.Min(leftBottom, rightBottom));
+            Vector2 max = Vector2.Max(Vector2.Max(leftTop, rightTop),
+                                     Vector2.Max(leftBottom, rightBottom));
+
+            // Return that as a rectangle
+            return new Rectangle((int)min.X, (int)min.Y,
+                                (int)(max.X - min.X), (int)(max.Y - min.Y));
         }
 
         public BugObject(Texture2D texture, Vector2 position)
         {
-            this.Texture = texture;
-            this.Position = position;
-            this.Rotation = 0f;
-            this.Velocity = new Vector2(0f, 0f);
-            this.Origin.X = this.Texture.Width / 2;
-            this.Origin.Y = this.Texture.Height / 2;
+            this._texture = texture;
+            this._position = position;
+            this._rotation = 0f;
+            this._velocity = new Vector2(0f, 0f);
+            this._origin.X = this._texture.Width / 2;
+            this._origin.Y = this._texture.Height / 2;
         }
 
         public BugObject(Texture2D texture, Vector2 position, float rotation)
         {
-            this.Texture = texture;
-            this.Position = position;
-            this.Rotation = rotation;
-            this.Velocity = new Vector2(0f, 0f);
-            this.Origin.X = this.Texture.Width / 2;
-            this.Origin.Y = this.Texture.Height / 2;
+            this._texture = texture;
+            this._position = position;
+            this._rotation = rotation;
+            this._velocity = new Vector2(0f, 0f);
+            this._origin.X = this._texture.Width / 2;
+            this._origin.Y = this._texture.Height / 2;
         }
 
         public BugObject(Texture2D texture, Vector2 position, Vector2 velocity)
         {
-            this.Texture = texture;
-            this.Position = position;
-            this.Velocity = velocity;
-            this.Rotation = (float)Math.Atan2(this.Velocity.X, this.Velocity.Y);
-            this.Origin.X = this.Texture.Width / 2;
-            this.Origin.Y = this.Texture.Height / 2;
+            this._texture = texture;
+            this._position = position;
+            this._velocity = velocity;
+            this._rotation = (float)Math.Atan2(this._velocity.X, this._velocity.Y);
+            this._origin.X = this._texture.Width / 2;
+            this._origin.Y = this._texture.Height / 2;
         }
 
         public void Draw(SpriteBatch spriteBatch)
         {
-            spriteBatch.Draw(Texture, Position, null, Color.White, Rotation, Origin, 1f, SpriteEffects.None, 0f);
+            spriteBatch.Draw(_texture, _position, null, Color.White, _rotation, _origin, 1f, SpriteEffects.None, 0f);
         }
 
-        public void Move()
+        public void Move(GameTime gameTime)
         {
-            if (this.condBlocked)
+            float x = this._position.X;
+            float y = this._position.Y;
+            Matrix m = Matrix.CreateRotationZ(this._rotation);
+            x += m.M12 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
+            y -= m.M11 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
+            this._position = new Vector2(x, y);
+        }
+
+        public void CheckBoundaryCollision(GameTime gameTime, Rectangle limits)
+        {
+            int MaxX = limits.Width;
+            int MinX = 0;
+            int MaxY = limits.Height;
+            int MinY = 0;
+            int angle = (int)RadianToDegree(this._rotation);
+
+            if (this._position.X > MaxX)
             {
-                this.Rotation += 2f;
-                condBlocked = false;
+                this._position.X = MaxX;
+                if (angle < 90)
+                {
+                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                }
+                else
+                {
+                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                }
             }
-            else
+            else if (this._position.X < MinX)
             {
-                float x = this.Position.X;
-                float y = this.Position.Y;
-                Matrix m = Matrix.CreateRotationZ(this.Rotation);
-                x += m.M12 * Speed;
-                y -= m.M11 * Speed;
-                this.Position = new Vector2(x, y);
+                this._position.X = MinX;
+                if (angle > 270)
+                {
+                    this._rotation += _rotationStep;
+                }
+                else
+                {
+                    this._rotation -= _rotationStep;
+                }
+            }
+
+            if (this._position.Y > MaxY)
+            {
+                this._position.Y = MaxY;
+                if (angle < 180)
+                {
+                    this._rotation -= _rotationStep;
+                }
+                else
+                {
+                    this._rotation += _rotationStep;
+                }
+            }
+            else if (this._position.Y < MinY)
+            {
+                this._position.Y = MinY;
+                if (angle > 0)
+                {
+                    this._rotation += _rotationStep;
+                }
+                else
+                {
+                    this._rotation -= _rotationStep;
+                }
             }
         }
 
-        public void CheckCollision(Rectangle limits)
+        public void Avoid()
         {
-            int MaxX = limits.Width - (this.Texture.Width / 2);
-            int MinX = this.Texture.Width / 2;
-            int MaxY = limits.Height - (this.Texture.Height / 2);
-            int MinY = this.Texture.Height / 2;
+            this._rotation += _rotationStep;
+        }
 
-            if (this.Position.X > MaxX)
-            {
-                this.Position.X = MaxX;
-                this.condBlocked = true;
-            }
-            else if (this.Position.X < MinX)
-            {
-                this.Position.X = MinX;
-                this.condBlocked = true;
-            }
-
-            if (this.Position.Y > MaxY)
-            {
-                this.Position.Y = MaxY;
-                this.condBlocked = true;
-            }
-            else if (this.Position.Y < MinY)
-            {
-                this.Position.Y = MinY;
-                this.condBlocked = true;
-            }
+        private double RadianToDegree(double angle)
+        {
+            return angle * (180.0 / Math.PI);
         }
     }
 }

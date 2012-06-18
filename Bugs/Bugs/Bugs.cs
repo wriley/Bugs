@@ -18,18 +18,21 @@ namespace Bugs
     {
         private GraphicsDeviceManager graphics;
         private SpriteBatch spriteBatch;
-        private Texture2D spriteTexture;
-        private int worldWidth = 2048;
-        private int worldHeight = 2048;
+        private Vector2 spriteFontPosition;
+        private Texture2D backgroundTexture;
+        private SpriteFont spriteFont;
+        private int worldWidth = 128;
+        private int worldHeight = 128;
         private Camera _camera;
         private MouseState old_mouse;
         private float mouseMoveScalingFactor = -1f;
         private float mouseZoomScalingFactor = 1200.0f;
+        private float frameRate;
+        private float updateRate;
+        private string output = "";
 
-        private BugObject bug1;
-
-        private int numBugs = 500;
-        private List<BugObject> bugs;
+        private int maxBugs = 500;
+        private List<BugObject> bugsList;
         private Texture2D bugTexture;
 
         public Game1()
@@ -38,20 +41,20 @@ namespace Bugs
             graphics = new GraphicsDeviceManager(this);
 
             // Set vertical trace with the back buffer  
-            graphics.SynchronizeWithVerticalRetrace = false;
+            graphics.SynchronizeWithVerticalRetrace = true;
 
             // Use multi-sampling to smooth corners of objects  
             graphics.PreferMultiSampling = true;
 
             // Set the update to run as fast as it can go or  
             // with a target elapsed time between updates  
-            IsFixedTimeStep = false;
+            IsFixedTimeStep = true;
 
             // Make the mouse appear  
             IsMouseVisible = true;
 
             // Set back buffer resolution  
-            graphics.PreferredBackBufferWidth = 800;
+            graphics.PreferredBackBufferWidth = 600;
             graphics.PreferredBackBufferHeight = 600;
 
             // Make full screen  
@@ -71,9 +74,7 @@ namespace Bugs
         {
             _camera = new Camera(GraphicsDevice.Viewport);
             _camera.Limits = new Rectangle(0, 0, worldWidth, worldHeight);
-
-            
-
+            bugsList = new List<BugObject>();
             base.Initialize();
         }
 
@@ -85,22 +86,11 @@ namespace Bugs
         {
             // Create a new SpriteBatch, which can be used to draw textures.
             spriteBatch = new SpriteBatch(GraphicsDevice);
-
-            spriteTexture = Content.Load<Texture2D>("dirt");
-
+            spriteFont = Content.Load<SpriteFont>("CourierNew");
+            backgroundTexture = Content.Load<Texture2D>("dirt_plain");
             bugTexture = Content.Load<Texture2D>("bug");
             Vector2 startPosition = new Vector2(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
             Vector2 startVelocity = new Vector2(2f, 2f);
-
-            //bug1 = new BugObject(bugTexture, startPosition, startVelocity);
-            
-            bugs = new List<BugObject>(numBugs);
-            Random random = new Random();
-            for (int i = 0; i < numBugs; i++)
-            {
-                bugs.Add(new BugObject(bugTexture, startPosition, (float)(random.Next(0,359) * Math.PI / 180.0)));
-            }
-            
         }
 
         /// <summary>
@@ -119,34 +109,59 @@ namespace Bugs
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Update(GameTime gameTime)
         {
+            updateRate = 1 / (float)gameTime.ElapsedGameTime.TotalSeconds;
+
             KeyboardState keyboard = Keyboard.GetState();
+            MouseState mouse = Mouse.GetState();
+
             if (keyboard.IsKeyDown(Keys.Escape)) this.Exit();
 
-            //bug1.Move();
-            //bug1.CheckCollision(new Rectangle(0, 0, worldWidth, worldHeight));
-            
-            for (int i = 0; i < bugs.Count; i++)
+            if (mouse.LeftButton == ButtonState.Pressed)
             {
-                bugs[i].Move();
-                bugs[i].CheckCollision(new Rectangle(0, 0, worldWidth, worldHeight));
+                _camera.Position += new Vector2((mouse.X - old_mouse.X) * mouseMoveScalingFactor / _camera.Zoom, (mouse.Y - old_mouse.Y) * mouseMoveScalingFactor / _camera.Zoom);
             }
-            
 
-            if (Mouse.GetState().LeftButton == ButtonState.Pressed)
+            if (mouse.ScrollWheelValue != old_mouse.ScrollWheelValue)
             {
-                _camera.Position += new Vector2((Mouse.GetState().X - old_mouse.X) * mouseMoveScalingFactor / _camera.Zoom, (Mouse.GetState().Y - old_mouse.Y) * mouseMoveScalingFactor / _camera.Zoom);
-            }
- 
-            if (Mouse.GetState().ScrollWheelValue != old_mouse.ScrollWheelValue)
-            {
-                _camera.Zoom += (Mouse.GetState().ScrollWheelValue - old_mouse.ScrollWheelValue) / mouseZoomScalingFactor;
+                _camera.Zoom += (mouse.ScrollWheelValue - old_mouse.ScrollWheelValue) / mouseZoomScalingFactor;
             }
 
             if (keyboard.IsKeyDown(Keys.R))
             {
                 ResetCamera();
             }
- 
+
+            if (mouse.MiddleButton == ButtonState.Pressed && old_mouse.MiddleButton == ButtonState.Released)
+            {
+                if (bugsList.Count < maxBugs)
+                {
+                    Vector2 mousePos = new Vector2(mouse.X, mouse.Y);
+                    Matrix transform = Matrix.Invert(_camera.ViewMatrix);
+                    Vector2.Transform(ref mousePos, ref transform, out mousePos);
+                    bugsList.Add(new BugObject(bugTexture, mousePos));
+                }
+            }
+
+            foreach (BugObject bug in bugsList)
+            {
+                bug.Move(gameTime);
+                bug.CheckBoundaryCollision(gameTime, new Rectangle(0, 0, worldWidth, worldHeight));
+            }
+
+            for (int i = 0; i < bugsList.Count; i++)
+            {
+                for (int j = 0; j < bugsList.Count; j++)
+                {
+                    if (i != j)
+                    {
+                        if (bugsList[i].BoundingBox.Intersects(bugsList[j].BoundingBox))
+                        {
+                            bugsList[i].Avoid();
+                        }
+                    }
+                }
+            }
+
             old_mouse = Mouse.GetState();
 
             base.Update(gameTime);
@@ -165,6 +180,7 @@ namespace Bugs
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
+            frameRate = 1 / (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             spriteBatch.Begin(SpriteSortMode.BackToFront,
                         BlendState.AlphaBlend,
@@ -173,15 +189,22 @@ namespace Bugs
                         RasterizerState.CullNone,
                         null,
                         _camera.ViewMatrix);
-            //bug1.Draw(spriteBatch);
-            
-            for (int i = 0; i < bugs.Count; i++)
-            {
-                bugs[i].Draw(spriteBatch);
-            }
-            
 
-            spriteBatch.Draw(spriteTexture, Vector2.Zero, new Rectangle(0, 0, worldWidth, worldHeight), Color.White, 0, Vector2.Zero, 1, SpriteEffects.None, 0);
+            output = string.Format("FPS: {0:0.0}  UPS: {1:0.000}", frameRate, updateRate);
+            Vector2 fontOrigin = spriteFont.MeasureString(output) / 2;
+            Matrix transform = Matrix.Invert(_camera.ViewMatrix);
+            Vector2 viewportPos = new Vector2(graphics.GraphicsDevice.Viewport.X, graphics.GraphicsDevice.Viewport.Y);
+            Vector2.Transform(ref viewportPos, ref transform, out spriteFontPosition);
+            spriteFontPosition += fontOrigin / _camera.Zoom;
+            spriteBatch.DrawString(spriteFont, output, spriteFontPosition, Color.White, 0, fontOrigin, 1.0f / _camera.Zoom, SpriteEffects.None, 0);
+
+
+            foreach (BugObject bug in bugsList)
+            {
+                bug.Draw(spriteBatch);
+            }
+
+            spriteBatch.Draw(backgroundTexture, Vector2.Zero, new Rectangle(0, 0, worldWidth, worldHeight), Color.White, 0, Vector2.Zero, 1, SpriteEffects.None, 1);
 
             spriteBatch.End();
 
