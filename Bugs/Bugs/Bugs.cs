@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework.GamerServices;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
+using System.Threading;
 
 namespace Bugs
 {
@@ -21,8 +22,9 @@ namespace Bugs
         private Vector2 spriteFontPosition;
         private Texture2D backgroundTexture;
         private SpriteFont spriteFont;
-        private int worldWidth = 128;
-        private int worldHeight = 128;
+        private int _worldWidth = 1024;
+        private int _worldHeight = 1024;
+        private Rectangle _worldLimits;
         private Camera _camera;
         private MouseState old_mouse;
         private float mouseMoveScalingFactor = -1f;
@@ -75,8 +77,9 @@ namespace Bugs
         protected override void Initialize()
         {
             _camera = new Camera(GraphicsDevice.Viewport);
-            _camera.Limits = new Rectangle(0, 0, worldWidth, worldHeight);
+            _camera.Limits = new Rectangle(0, 0, _worldWidth, _worldHeight);
             bugsList = new List<BugObject>();
+            _worldLimits = new Rectangle(0, 0, _worldWidth, _worldHeight);
             base.Initialize();
         }
 
@@ -91,8 +94,14 @@ namespace Bugs
             spriteFont = Content.Load<SpriteFont>("CourierNew");
             backgroundTexture = Content.Load<Texture2D>("dirt_plain");
             bugTexture = Content.Load<Texture2D>("bug");
-            Vector2 startPosition = new Vector2(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
-            Vector2 startVelocity = new Vector2(2f, 2f);
+            Vector2 startPosition = new Vector2(graphics.GraphicsDevice.Viewport.Width / 2, graphics.GraphicsDevice.Viewport.Height / 2);
+
+            for (int i = 0; i < maxBugs; i++)
+            {
+                float rot = 6.28318531f * (float)_random.NextDouble();
+                bugsList.Add(new BugObject(bugTexture, startPosition, rot));
+                Thread.Sleep(1);
+            }
         }
 
         /// <summary>
@@ -145,27 +154,12 @@ namespace Bugs
                 }
             }
 
+            bugsList.RemoveAll(delegate(BugObject b) { return b.isDead(); });
+
             foreach (BugObject bug in bugsList)
             {
-                bug.Move(gameTime);
-                bug.CheckBoundaryCollision(gameTime, new Rectangle(0, 0, worldWidth, worldHeight));
+                bug.Update(gameTime, _worldLimits);
             }
-
-            /*
-            for (int i = 0; i < bugsList.Count; i++)
-            {
-                for (int j = 0; j < bugsList.Count; j++)
-                {
-                    if (i != j)
-                    {
-                        if (bugsList[i].BoundingBox.Intersects(bugsList[j].BoundingBox))
-                        {
-                            bugsList[i].Avoid(gameTime);
-                        }
-                    }
-                }
-            }
-            */
 
             old_mouse = Mouse.GetState();
 
@@ -209,7 +203,7 @@ namespace Bugs
                 bug.Draw(spriteBatch);
             }
 
-            spriteBatch.Draw(backgroundTexture, Vector2.Zero, new Rectangle(0, 0, worldWidth, worldHeight), Color.White, 0, Vector2.Zero, 1, SpriteEffects.None, 1);
+            spriteBatch.Draw(backgroundTexture, Vector2.Zero, new Rectangle(0, 0, _worldWidth, _worldHeight), Color.White, 0, Vector2.Zero, 1, SpriteEffects.None, 1);
 
             spriteBatch.End();
 

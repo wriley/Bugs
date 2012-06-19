@@ -12,21 +12,64 @@ namespace Bugs
     {
         private Texture2D _texture;
         private float _rotation;
-        private float _speed = 20f;
+        private float _speed = 25f;
         private float _rotationStep = 10f;
         private Vector2 _origin;
         private Random _random = new Random();
         private Vector2 _position;
-        private Vector2 _velocity;
+        private int _wanderTimer;
+        private int _wanderTimerMax = 50;
+        private int _backupTimer;
+        private int _backupTimerMax = 15;
+        private int _turnTimer;
+        private int _turnTimerMax = 5;
+        private int _restTimer;
+        private int _restTimerMax = 150;
+        private int _stamina = 10000;
+        private int _longestSide;
+        private _states _state;
+        private int _turnLeft = 1;
+        private int _life = 100000;
+
+        private enum _states
+        {
+            wander,
+            backup,
+            turn,
+            rest,
+            dead
+        };
+
+        public BugObject(Texture2D texture, Vector2 position, float rotation = 0f)
+        {
+            _texture = texture;
+            _position = position;
+            _rotation = rotation;
+            _origin.X = _texture.Width / 2;
+            _origin.Y = _texture.Height / 2;
+            _longestSide = _texture.Width > _texture.Height ? _texture.Width : _texture.Height;
+            _state = _states.wander;
+            _wanderTimer = 0;
+            _backupTimer = 0;
+            _turnTimer = 0;
+            _restTimer = 0;
+            _stamina += _random.Next(0, 2501);
+            _life += _random.Next(0, 25001);
+        }
+
+        public bool isDead()
+        {
+            return _life == 0;
+        }
 
         public Rectangle BoundingBox
         {
             get
             {
                 Matrix toWorldSpace =
-                    Matrix.CreateTranslation(new Vector3(-this._origin, 0.0f)) *
-                    Matrix.CreateRotationZ(this._rotation) *
-                    Matrix.CreateTranslation(new Vector3(this._position, 0.0f));
+                    Matrix.CreateTranslation(new Vector3(-_origin, 0.0f)) *
+                    Matrix.CreateRotationZ(_rotation) *
+                    Matrix.CreateTranslation(new Vector3(_position, 0.0f));
 
                 return CalculateTransformedBoundingBox(
                     new Rectangle(0, 0, _texture.Width, _texture.Height),
@@ -64,34 +107,14 @@ namespace Bugs
                                 (int)(max.X - min.X), (int)(max.Y - min.Y));
         }
 
-        public BugObject(Texture2D texture, Vector2 position)
+        public void Update(GameTime gameTime, Rectangle limits)
         {
-            this._texture = texture;
-            this._position = position;
-            this._rotation = 0f;
-            this._velocity = new Vector2(0f, 0f);
-            this._origin.X = this._texture.Width / 2;
-            this._origin.Y = this._texture.Height / 2;
-        }
-
-        public BugObject(Texture2D texture, Vector2 position, float rotation)
-        {
-            this._texture = texture;
-            this._position = position;
-            this._rotation = rotation;
-            this._velocity = new Vector2(0f, 0f);
-            this._origin.X = this._texture.Width / 2;
-            this._origin.Y = this._texture.Height / 2;
-        }
-
-        public BugObject(Texture2D texture, Vector2 position, Vector2 velocity)
-        {
-            this._texture = texture;
-            this._position = position;
-            this._velocity = velocity;
-            this._rotation = (float)Math.Atan2(this._velocity.X, this._velocity.Y);
-            this._origin.X = this._texture.Width / 2;
-            this._origin.Y = this._texture.Height / 2;
+                this.Move(gameTime);
+                this.CheckBoundaryCollision(gameTime, limits);
+                if (_rotation > DegreeToRadian(360))
+                {
+                    _rotation = 0f;
+                }
         }
 
         public void Draw(SpriteBatch spriteBatch)
@@ -99,91 +122,159 @@ namespace Bugs
             spriteBatch.Draw(_texture, _position, null, Color.White, _rotation, _origin, 1f, SpriteEffects.None, 0f);
         }
 
-        public void Move(GameTime gameTime)
+        private void Move(GameTime gameTime)
         {
-            float x = this._position.X;
-            float y = this._position.Y;
-            Matrix m = Matrix.CreateRotationZ(this._rotation);
-            x += m.M12 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
-            y -= m.M11 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
-            this._position = new Vector2(x, y);
+            float x, y;
+            Matrix m;
+
+            if (--_life == 0)
+            {
+                _state = _states.dead;
+            }
+            else if (_stamina < 1)
+            {
+                _state = _states.rest;
+            }
+
+            switch (_state)
+            {
+                case _states.wander:
+                    if (_wanderTimer++ >= _wanderTimerMax)
+                    {
+                        double d = _random.NextDouble();
+                        if (d > 0.5)
+                        {
+                            _rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                        }
+                        else
+                        {
+                            _rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                        }
+                        _wanderTimer = (int)(d * 10) + 10;
+                    }
+                    x = _position.X;
+                    y = _position.Y;
+                    m = Matrix.CreateRotationZ(_rotation);
+                    x += m.M12 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
+                    y -= m.M11 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
+                    _position = new Vector2(x, y);
+                    _stamina--;
+                    break;
+                case _states.backup:
+                    if (_backupTimer++ < _backupTimerMax)
+                    {
+                        x = _position.X;
+                        y = _position.Y;
+                        m = Matrix.CreateRotationZ(_rotation);
+                        x -= m.M12 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
+                        y += m.M11 * (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
+                        _position = new Vector2(x, y);
+                    }
+                    else
+                    {
+                        _backupTimer = 0;
+                        _state = _states.turn;
+                    }
+                    _stamina--;
+                    break;
+                case _states.turn:
+                    if (_turnTimer++ < _turnTimerMax)
+                    {
+                        _rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep * _turnLeft;
+                    }
+                    else
+                    {
+                        _turnTimer = 0;
+                        _state = _states.wander;
+                    }
+                    break;
+                case _states.rest:
+                    if (_restTimer++ < _restTimerMax)
+                    {
+                        _stamina += 10;
+                    }
+                    else
+                    {
+                        _restTimer = 0;
+                        _state = _states.wander;
+                    }
+                    break;
+                case _states.dead:
+                    break;
+            }
         }
 
-        public void CheckBoundaryCollision(GameTime gameTime, Rectangle limits)
+        private void CheckBoundaryCollision(GameTime gameTime, Rectangle limits)
         {
-            int MaxX = limits.Width - 1;
-            int MinX = 1;
-            int MaxY = limits.Height - 1;
-            int MinY = 1;
-            int angle = (int)RadianToDegree(this._rotation);
+            int MaxX = limits.Width - (_longestSide / 2);
+            int MinX = _longestSide / 2;
+            int MaxY = limits.Height - (_longestSide / 2);
+            int MinY = _longestSide / 2;
+            double angle = RadianToDegree(_rotation);
 
-            if (this._position.X > MaxX)
+            if (_position.X > MaxX)
             {
-                this._position.X = MaxX;
-                if (angle >= 0 && angle < 90)
+                _position.X = MaxX;
+                _state = _states.backup;
+                if (angle > 0 && angle <= 90)
                 {
-                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = 1;
                 }
                 else
                 {
-                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = -1;
                 }
             }
-            else if (this._position.X < MinX)
+            else if (_position.X < MinX)
             {
-                this._position.X = MinX;
-                if (angle >= 270 && angle < 360)
+                _position.X = MinX;
+                _state = _states.backup;
+                if (angle > 180 && angle <= 270)
                 {
-                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = 1;
                 }
                 else
                 {
-                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = -1;
                 }
             }
 
-            if (this._position.Y > MaxY)
+            if (_position.Y > MaxY)
             {
-                this._position.Y = MaxY;
-                if (angle >= 180 && angle < 270)
+                _position.Y = MaxY;
+                _state = _states.backup;
+                if (angle > 90 && angle <= 180)
                 {
-                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = 1;
                 }
                 else
                 {
-                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = -1;
                 }
             }
-            else if (this._position.Y < MinY)
+            else if (_position.Y < MinY)
             {
-                this._position.Y = MinY;
-                if (angle >= 0 && angle < 90)
+                _position.Y = MinY;
+                _state = _states.backup;
+                if (angle > 270 && angle <= 360)
                 {
-                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = 1;
                 }
                 else
                 {
-                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+                    _turnLeft = -1;
                 }
-            }
-        }
-
-        public void Avoid(GameTime gameTime)
-        {
-            double r = _random.NextDouble();
-            if (r >= 0.5)
-            {
-                this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
-            }
-            else
-            {
-                this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
             }
         }
 
         private double RadianToDegree(double angle)
         {
             return angle * (180.0 / Math.PI);
+        }
+
+        private double DegreeToRadian(double radian)
+        {
+            return radian * (Math.PI / 180.0);
         }
     }
 }
