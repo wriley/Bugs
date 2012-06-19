@@ -35,6 +35,8 @@ namespace Bugs
         private List<BugObject> bugsList;
         private Texture2D bugTexture;
 
+        private Random _random = new Random();
+
         public Game1()
         {
             // Instance the super-helpful graphics manager  
@@ -131,14 +133,15 @@ namespace Bugs
                 ResetCamera();
             }
 
-            if (mouse.MiddleButton == ButtonState.Pressed && old_mouse.MiddleButton == ButtonState.Released)
+            if (mouse.RightButton == ButtonState.Pressed && old_mouse.RightButton == ButtonState.Released)
             {
                 if (bugsList.Count < maxBugs)
                 {
                     Vector2 mousePos = new Vector2(mouse.X, mouse.Y);
                     Matrix transform = Matrix.Invert(_camera.ViewMatrix);
                     Vector2.Transform(ref mousePos, ref transform, out mousePos);
-                    bugsList.Add(new BugObject(bugTexture, mousePos));
+                    float rot = 5f * (float)_random.NextDouble() + 1;
+                    bugsList.Add(new BugObject(bugTexture, mousePos, rot));
                 }
             }
 
@@ -148,6 +151,7 @@ namespace Bugs
                 bug.CheckBoundaryCollision(gameTime, new Rectangle(0, 0, worldWidth, worldHeight));
             }
 
+            /*
             for (int i = 0; i < bugsList.Count; i++)
             {
                 for (int j = 0; j < bugsList.Count; j++)
@@ -156,11 +160,12 @@ namespace Bugs
                     {
                         if (bugsList[i].BoundingBox.Intersects(bugsList[j].BoundingBox))
                         {
-                            bugsList[i].Avoid();
+                            bugsList[i].Avoid(gameTime);
                         }
                     }
                 }
             }
+            */
 
             old_mouse = Mouse.GetState();
 
@@ -190,7 +195,7 @@ namespace Bugs
                         null,
                         _camera.ViewMatrix);
 
-            output = string.Format("FPS: {0:0.0}  UPS: {1:0.000}", frameRate, updateRate);
+            output = string.Format("FPS: {0:0.0}  UPS: {1:0.000} Count: {2}", frameRate, updateRate, bugsList.Count);
             Vector2 fontOrigin = spriteFont.MeasureString(output) / 2;
             Matrix transform = Matrix.Invert(_camera.ViewMatrix);
             Vector2 viewportPos = new Vector2(graphics.GraphicsDevice.Viewport.X, graphics.GraphicsDevice.Viewport.Y);

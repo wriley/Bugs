@@ -13,7 +13,7 @@ namespace Bugs
         private Texture2D _texture;
         private float _rotation;
         private float _speed = 20f;
-        private float _rotationStep = 0.05f;
+        private float _rotationStep = 10f;
         private Vector2 _origin;
         private Random _random = new Random();
         private Vector2 _position;
@@ -111,16 +111,16 @@ namespace Bugs
 
         public void CheckBoundaryCollision(GameTime gameTime, Rectangle limits)
         {
-            int MaxX = limits.Width;
-            int MinX = 0;
-            int MaxY = limits.Height;
-            int MinY = 0;
+            int MaxX = limits.Width - 1;
+            int MinX = 1;
+            int MaxY = limits.Height - 1;
+            int MinY = 1;
             int angle = (int)RadianToDegree(this._rotation);
 
             if (this._position.X > MaxX)
             {
                 this._position.X = MaxX;
-                if (angle < 90)
+                if (angle >= 0 && angle < 90)
                 {
                     this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                 }
@@ -132,45 +132,53 @@ namespace Bugs
             else if (this._position.X < MinX)
             {
                 this._position.X = MinX;
-                if (angle > 270)
+                if (angle >= 270 && angle < 360)
                 {
-                    this._rotation += _rotationStep;
+                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                 }
                 else
                 {
-                    this._rotation -= _rotationStep;
+                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                 }
             }
 
             if (this._position.Y > MaxY)
             {
                 this._position.Y = MaxY;
-                if (angle < 180)
+                if (angle >= 180 && angle < 270)
                 {
-                    this._rotation -= _rotationStep;
+                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                 }
                 else
                 {
-                    this._rotation += _rotationStep;
+                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                 }
             }
             else if (this._position.Y < MinY)
             {
                 this._position.Y = MinY;
-                if (angle > 0)
+                if (angle >= 0 && angle < 90)
                 {
-                    this._rotation += _rotationStep;
+                    this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                 }
                 else
                 {
-                    this._rotation -= _rotationStep;
+                    this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                 }
             }
         }
 
-        public void Avoid()
+        public void Avoid(GameTime gameTime)
         {
-            this._rotation += _rotationStep;
+            double r = _random.NextDouble();
+            if (r >= 0.5)
+            {
+                this._rotation += (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+            }
+            else
+            {
+                this._rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
+            }
         }
 
         private double RadianToDegree(double angle)
