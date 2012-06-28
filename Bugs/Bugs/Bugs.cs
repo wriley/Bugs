@@ -22,13 +22,15 @@ namespace Bugs
         private Vector2 spriteFontPosition;
         private Texture2D backgroundTexture;
         private SpriteFont spriteFont;
-        private int _worldWidth = 1024;
-        private int _worldHeight = 1024;
+        private int _worldWidth = 800;
+        private int _worldHeight = 800;
         private Rectangle _worldLimits;
         private Camera _camera;
         private MouseState old_mouse;
         private float mouseMoveScalingFactor = -1f;
         private float mouseZoomScalingFactor = 1200.0f;
+        private float _keyboardZoomFactor = 0.1f;
+        private float _keyboardMoveFactor = 15f;
         private float frameRate;
         private float updateRate;
         private string output = "";
@@ -58,8 +60,8 @@ namespace Bugs
             IsMouseVisible = true;
 
             // Set back buffer resolution  
-            graphics.PreferredBackBufferWidth = 600;
-            graphics.PreferredBackBufferHeight = 600;
+            graphics.PreferredBackBufferWidth = _worldWidth;
+            graphics.PreferredBackBufferHeight = _worldHeight;
 
             // Make full screen  
             //graphics.ToggleFullScreen();
@@ -142,6 +144,36 @@ namespace Bugs
                 ResetCamera();
             }
 
+            if (keyboard.IsKeyDown(Keys.Left))
+            {
+                _camera.Position -= new Vector2(_keyboardMoveFactor / _camera.Zoom, 0);
+            }
+
+            if (keyboard.IsKeyDown(Keys.Right))
+            {
+                _camera.Position += new Vector2(_keyboardMoveFactor / _camera.Zoom, 0);
+            }
+
+            if (keyboard.IsKeyDown(Keys.Up))
+            {
+                _camera.Position -= new Vector2(0, _keyboardMoveFactor / _camera.Zoom);
+            }
+
+            if (keyboard.IsKeyDown(Keys.Down))
+            {
+                _camera.Position += new Vector2(0, _keyboardMoveFactor / _camera.Zoom);
+            }
+
+            if (keyboard.IsKeyDown(Keys.OemPlus))
+            {
+                _camera.Zoom += _keyboardZoomFactor;
+            }
+
+            if (keyboard.IsKeyDown(Keys.OemMinus))
+            {
+                _camera.Zoom -= _keyboardZoomFactor;
+            }
+
             if (mouse.RightButton == ButtonState.Pressed && old_mouse.RightButton == ButtonState.Released)
             {
                 if (bugsList.Count < maxBugs)
@@ -189,7 +221,15 @@ namespace Bugs
                         null,
                         _camera.ViewMatrix);
 
-            output = string.Format("FPS: {0:0.0}  UPS: {1:0.000} Count: {2}", frameRate, updateRate, bugsList.Count);
+            int stuckCount = 0;
+            int aliveCount = 0;
+            foreach (BugObject bug in bugsList)
+            {
+                if (bug.isStuck()) { stuckCount++; }
+                if (!bug.isDead()) { aliveCount++; }
+            }
+
+            output = string.Format("FPS:{0:0.0}  UPS:{1:0.000} Alive:{2} Zoom:{3} Stuck:{4}", frameRate, updateRate, aliveCount, _camera.Zoom, stuckCount);
             Vector2 fontOrigin = spriteFont.MeasureString(output) / 2;
             Matrix transform = Matrix.Invert(_camera.ViewMatrix);
             Vector2 viewportPos = new Vector2(graphics.GraphicsDevice.Viewport.X, graphics.GraphicsDevice.Viewport.Y);
@@ -197,13 +237,12 @@ namespace Bugs
             spriteFontPosition += fontOrigin / _camera.Zoom;
             spriteBatch.DrawString(spriteFont, output, spriteFontPosition, Color.White, 0, fontOrigin, 1.0f / _camera.Zoom, SpriteEffects.None, 0);
 
+            spriteBatch.Draw(backgroundTexture, Vector2.Zero, new Rectangle(0, 0, _worldWidth, _worldHeight), Color.White, 0, Vector2.Zero, 1, SpriteEffects.None, 1);
 
             foreach (BugObject bug in bugsList)
             {
                 bug.Draw(spriteBatch);
             }
-
-            spriteBatch.Draw(backgroundTexture, Vector2.Zero, new Rectangle(0, 0, _worldWidth, _worldHeight), Color.White, 0, Vector2.Zero, 1, SpriteEffects.None, 1);
 
             spriteBatch.End();
 

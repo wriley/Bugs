@@ -30,12 +30,15 @@ namespace Bugs
         private _states _state;
         private int _turnLeft = 1;
         private int _life = 100000;
+        private int _stuckCounter = 0;
+        private int _stuckCounterMax = 10;
 
         private enum _states
         {
             wander,
             backup,
             turn,
+            stuck,
             rest,
             dead
         };
@@ -60,6 +63,11 @@ namespace Bugs
         public bool isDead()
         {
             return _life == 0;
+        }
+
+        public bool isStuck()
+        {
+            return _state == _states.stuck;
         }
 
         public Rectangle BoundingBox
@@ -139,6 +147,7 @@ namespace Bugs
             switch (_state)
             {
                 case _states.wander:
+                    if (_stuckCounter > 0) { _stuckCounter--; }
                     if (_wanderTimer++ >= _wanderTimerMax)
                     {
                         double d = _random.NextDouble();
@@ -176,11 +185,26 @@ namespace Bugs
                         _state = _states.turn;
                     }
                     _stamina--;
+                    if (_stuckCounter++ > _stuckCounterMax)
+                    {
+                        _state = _states.stuck;
+                    }
                     break;
                 case _states.turn:
                     if (_turnTimer++ < _turnTimerMax)
                     {
                         _rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep * _turnLeft;
+                    }
+                    else
+                    {
+                        _turnTimer = 0;
+                        _state = _states.wander;
+                    }
+                    break;
+                case _states.stuck:
+                    if (_turnTimer++ < _turnTimerMax*2)
+                    {
+                        _rotation -= (float)gameTime.ElapsedGameTime.TotalSeconds * _rotationStep;
                     }
                     else
                     {
